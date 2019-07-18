@@ -1,0 +1,10 @@
+imdb.jar
+imdb-embedded.jar
+imdb-java.jar
+imdb.dll
+imdb.txt
+tmp/
+debug/
+imdb-small.txt
+csharp/obj
+csharp/bin

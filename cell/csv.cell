@@ -1,0 +1,92 @@
+type Nat7   = <0..127>;
+type Nat15  = <0..32767>;
+
+
+(Int, Nat) read_integer(Byte* content, Nat offset) {
+  idx = offset;
+  neg = content(idx) == `-`;
+  idx = idx + 1 if neg;
+  fail if not is_digit(content(idx));
+  value = content(idx) - `0`;
+  loop {
+    idx = idx + 1;
+    if idx == |content|
+      return (value, |content|);
+    else if not is_digit(content(idx))
+      return (value, nat(idx));
+    value = 10 * value + content(idx) - `0`;
+  }
+}
+
+
+(Float, Nat) read_float(Byte* content, Nat offset) {
+  idx = offset;
+  neg = content(idx) == `-`;
+  idx = idx + 1 if neg;
+  fail if not is_digit(content(idx));
+  value = _float_(content(idx) - `0`);
+  loop {
+    idx = idx + 1;
+    if idx == |content|
+      return (value, |content|);
+    else if content(idx) == `.`
+      break;
+    else if not is_digit(content(idx))
+      return (value, nat(idx));
+    value = 10 * value + content(idx) - `0`;
+  }
+  digit_value = 0.1;
+  loop {
+    idx = idx + 1;
+    if idx == |content| or not is_digit(content(idx))
+      return (value, nat(idx));
+    value = value + (content(idx) - `0`) * digit_value;
+    digit_value = 0.1 * digit_value;
+  }
+}
+
+
+(String, Nat) read_string(Byte* content, Nat offset) {
+  chars : Byte*;
+
+  fail if content(offset) != `"`;
+
+  len = |content|;
+
+  idx = offset + 1;
+  chars = ();
+  loop {
+    fail if idx >= len;
+    ch = content(idx);
+    idx = idx + 1;
+    if ch == `"`
+      if idx < len and content(idx) == `"`
+        idx = idx + 1;
+      else
+        break;
+    // fail if not ch :: Nat15;
+    chars = (chars | ch);
+  }
+  return (string(chars), nat(idx));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Nat skip_semicolon(Byte* content, Nat offset) {
+  fail if content(offset) != `;`;
+  return nat(offset + 1);
+}
+
+
+Nat next_line(Byte* content, Nat offset) {
+  if offset < |content| {
+    fail if content(offset) != `\n`;
+    return nat(offset + 1);
+  }
+  else
+    return offset;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Bool is_digit(Nat ch) = ch >= `0` and ch <= `9`;

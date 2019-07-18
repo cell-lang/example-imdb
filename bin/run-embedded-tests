@@ -1,0 +1,27 @@
+set -x
+
+for I in {1..4}
+do
+
+	taskset -c 1 java -jar imdb-embedded.jar -l  15 dataset/ 	> out-embedded-l1-$I.txt
+	taskset -c 1 java -jar imdb-embedded.jar -u  15 dataset/ 	> out-embedded-u1-$I.txt
+	taskset -c 1 java -jar imdb-embedded.jar -q  15 dataset/ 	> out-embedded-q1-$I.txt
+	taskset -c 1 java -jar imdb-embedded.jar -uq 15 dataset/	> out-embedded-uq1-$I.txt
+
+	rm -f imdb-??.txt imdb-small-??.txt
+
+	taskset -c 1 java -jar imdb-embedded.jar -w  15 dataset/ imdb.txt		> out-embedded-w1-$I.txt
+	taskset -c 1 java -jar imdb-embedded.jar -uw 15 dataset/ imdb-small.txt	> out-embedded-uw1-$I.txt
+
+	taskset -c 1 java -jar imdb-embedded.jar -r 15 imdb.txt 		> out-embedded-r1-$I.txt
+	taskset -c 1 java -jar imdb-embedded.jar -r 15 imdb-small.txt 	> out-embedded-ru1-$I.txt
+
+	rm -f imdb-??.txt imdb-small-??.txt
+
+	java -jar imdb-embedded.jar -w  15 dataset/ imdb.txt		> out-embedded-w2-$I.txt
+	java -jar imdb-embedded.jar -uw 15 dataset/	imdb-small.txt	> out-embedded-uw2-$I.txt
+
+	java -jar imdb-embedded.jar -r 15 imdb.txt 			> out-embedded-r2-$I.txt
+	java -jar imdb-embedded.jar -r 15 imdb-small.txt 	> out-embedded-ru2-$I.txt
+
+done

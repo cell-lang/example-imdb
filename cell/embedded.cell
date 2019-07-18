@@ -1,0 +1,25 @@
+using MoviesDB {
+  Nat max_movie_id = nat(max(_untag_(id) : id <- movie));
+  Nat max_actor_id = nat(max(_untag_(id) : id <- actor));
+
+  Nat num_of_movies = |movie|;
+  Nat num_of_actors = |actor|;
+
+  Bool movie_exists(Nat id) = movie(:movie(id));
+  Bool actor_exists(Nat id) = actor(:actor(id));
+
+  [Movie]    movies 	= [id : id <- movie];
+  [Actor] 	 actors 	= [id : id <- actor];
+  [Director] directors 	= [id : id <- director];
+
+  [Actor] actors_by_first_name(String name) = [id : id <- first_name(?, name)];
+  [Actor] actors_by_last_name(String name)  = [id : id <- last_name(?, name)];
+
+  [Director] directors_of(Movie movie) = [d : d <- directed(?, movie)];
+
+  [Actor] cast(Movie movie) = [a : a <- acted_in(?, movie)];
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  [Director] directors_who_are_also_actors = [id : id <- director, is_also_actor(id)];
+}

@@ -1,0 +1,325 @@
+type Symbol         = <+>;
+type Int            = <*..*>;
+type Float          = <!>;
+
+type Any            = Symbol, Int, Float, Any*, [Any], [Any, Any], [Any, Any, Any], <+>(Any);
+
+type Bool           = true, false;
+type True           = true;
+type False          = false;
+
+type Nat            = <0..*>;
+type NzNat          = <1..*>;
+
+type Bit            = <0..1>;
+type Byte           = <0..255>;
+
+type String         = string(Nat*);
+type Ascii          = string(<0..127>*);
+
+type Opt[T]         = (), (T);
+
+type Nothing        = nothing;
+type Just[T]        = just(T);
+type Maybe[T]       = Nothing, Just[T];
+
+type Success[T]     = success(T);
+type Failure[T]     = failure(T);
+type Result[R, E]   = success(R), failure(E);
+
+type Date           = date(Int);
+type Time           = time(Int);
+
+////////////////////////////////////////////////////////////////////////////////
+
+protocol Ord:
+  (_<_) : Ord, Ord -> Bool;
+
+////////////////////////////////////////////////////////////////////////////////
+
+Int (-_) (Int n) = _neg_(n);
+
+Int (_+_) (Int a, Int b) = _add_(a, b);
+Int (_-_) (Int a, Int b) = _sub_(a, b);
+Int (_*_) (Int a, Int b) = _mult_(a, b);
+Int (_/_) (Int a, Int b) = _div_(a, b);
+
+Int mod(Int a, Int b) = _mod_(a, b);
+
+Bool (_<_)  (Int a, Int b) = _lt_(a, b);
+Bool (_<=_) (Int a, Int b) = _le_(a, b);
+Bool (_>_)  (Int a, Int b) = _lt_(b, a);
+Bool (_>=_) (Int a, Int b) = _le_(b, a);
+
+////////////////////////////////////////////////////////////////////////////////
+
+Int bwand(Int a, Int b) = _and_(a, b);
+Int bwor(Int a, Int b)  = _or_(a, b);
+Int xor(Int a, Int b)   = _xor_(a, b);
+
+////////////////////////////////////////////////////////////////////////////////
+
+Nat nat(Int n) = if n :: Nat then n else undefined;
+
+Nat abs(Int n) = if n :: Nat then n else nat(-n);
+
+Int sum(Int* ns) {
+  res = 0;
+  for n <- ns
+    res = res + n;
+  return res;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+Ord min(Ord a, Ord b) = if a < b then a else b;
+Ord max(Ord a, Ord b) = if a < b then b else a;
+
+Ord min([+Ord] ns) = min(isort(ns));
+
+Ord min(Ord+ ns) {
+  min = ns(0);
+  for n <- ns
+    min = n if n < min;
+  return min;
+}
+
+Ord max([+Ord] ns) = max(isort(ns));
+
+Ord max(Ord+ ns) {
+  max = ns(0);
+  for n <- ns
+    max = n if max < n;
+  return max;
+}
+
+[+T] max_by([+T] set, (T -> Ord) key) {
+  an_elt = any(set);
+  max_elts = (an_elt);
+  max_key = key(an_elt);
+  for elt <- set {
+    elt_key = key(elt);
+    if elt_key == max_key {
+      max_elts = (max_elts | elt);
+    }
+    else if max_key < elt_key {
+      max_elts = (elt);
+      max_key = elt_key;
+    }
+  }
+  return [elt : elt <~ max_elts];
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+Float (-_) (Float x) = _fneg_(x);
+
+Float (_+_) (Float x, Float y) = _fadd_(x, y);
+Float (_+_) (Int   x, Float y) = _fadd_(_float_(x), y);
+Float (_+_) (Float x, Int   y) = _fadd_(x, _float_(y));
+
+Float (_-_) (Float x, Float y) = _fsub_(x, y);
+Float (_-_) (Int   x, Float y) = _fsub_(_float_(x), y);
+Float (_-_) (Float x, Int   y) = _fsub_(x, _float_(y));
+
+Float (_*_) (Float x, Float y) = _fmult_(x, y);
+Float (_*_) (Int   x, Float y) = _fmult_(_float_(x), y);
+Float (_*_) (Float x, Int   y) = _fmult_(x, _float_(y));
+
+Float (_/_) (Float x, Float y) = _fdiv_(x, y);
+Float (_/_) (Int   x, Float y) = _fdiv_(_float_(x), y);
+Float (_/_) (Float x, Int   y) = _fdiv_(x, _float_(y));
+
+Bool (_<_)  (Float x, Float y) = _flt_(x, y);
+Bool (_<_)  (Int   x, Float y) = _flt_(_float_(x), y);
+Bool (_<_)  (Float x, Int   y) = _flt_(x, _float_(y));
+
+Bool (_<=_) (Float x, Float y) = _fle_(x, y);
+Bool (_<=_) (Int   x, Float y) = _fle_(_float_(x), y);
+Bool (_<=_) (Float x, Int   y) = _fle_(x, _float_(y));
+
+Bool (_>_)  (Float x, Float y) = _flt_(y, x);
+Bool (_>_)  (Int   x, Float y) = _flt_(y, _float_(x));
+Bool (_>_)  (Float x, Int   y) = _flt_(_float_(y), x);
+
+Bool (_>=_) (Float x, Float y) = _fle_(y, x);
+Bool (_>=_) (Int   x, Float y) = _fle_(y, _float_(x));
+Bool (_>=_) (Float x, Int   y) = _fle_(_float_(y), x);
+
+Float (_^_) (Float x, Float y) = _fexp_(x, y);
+Float (_^_) (Int   x, Float y) = _fexp_(_float_(x), y);
+Float (_^_) (Float x, Int   y) = _fexp_(x, _float_(y));
+Float (_^_) (Int   x, Int   y) = _fexp_(_float_(x), _float_(y));
+
+Float sqrt(Float x) = _fsqrt_(x);
+Float sqrt(Int   x) = _fsqrt_(_float_(x));
+
+////////////////////////////////////////////////////////////////////////////////
+
+<0..1> bit(Bool b) = if b then 1 else 0;
+
+//////////////////////////////////////////////////////////////////////////////
+
+Nothing nothing = :nothing;
+
+Just[T] just(T x) = :just(x);
+
+T value(Just[T]) =
+  just(x?)  = x;
+
+T value_unsafe(Maybe[T]) =
+  just(x?)  = x,
+  _         = undefined;
+
+Maybe[T] maybe(T x, Bool cond) = if cond then :just(x) else nothing;
+
+T* values(Maybe[T]* maybe_seq) = (value(maybe_value) : maybe_value <- maybe_seq, maybe_value != nothing);
+
+// [T] values([Maybe[T]] maybe_seq) = [value(maybe_value) : maybe_value <- maybe_seq, maybe_value != nothing];
+
+Maybe[B] apply(Maybe[A] m, (A -> B) f) =
+  just(x?)  = just(f(x)),
+  nothing   = nothing;
+
+Opt[T] opt(Maybe[T]) =
+  just(x?)  = (x),
+  nothing   = ();
+
+Maybe[T] maybe(Opt[T] opt) = if opt != () then just(only(opt)) else nothing;
+
+Maybe[T] maybe_unsafe(T* opt) =
+  if opt == ()  then nothing         else
+  if |opt| == 1 then just(only(opt)) else
+                     undefined;
+
+////////////////////////////////////////////////////////////////////////////////
+
+True  succeeded(Success[T]) = true;
+False succeeded(Failure[T]) = false;
+
+False failed(Success[T]) = false;
+True  failed(Failure[T]) = true;
+
+T result(Success[T] r) = untag(r);
+
+T error(Failure[T] r) = untag(r);
+
+////////////////////////////////////////////////////////////////////////////////
+
+() (_&_)((),    ())    = ();
+T+ (_&_)(T+ s,  ())    = s;
+T+ (_&_)((),    T+ s)  = s;
+T+ (_&_)(T+ s1, T+ s2) = {res = _cat_(s1, s2); return if res != () then res else undefined;};
+
+T* join(T** seqs) {
+  res = ();
+  for s <- seqs
+    res = _cat_(res, s);
+  return res;
+}
+
+T* reverse(T* seq) = _rev_(seq);
+
+T* take(T* seq, Int count) = if |seq| > count then _slice_(seq, 0, count) else seq;
+T* drop(T* seq, Int count) = if |seq| > count then _slice_(seq, count, |seq| - count) else ();
+
+T* slice(T* seq, Int first, Int count) = _slice_(seq, first, count);
+
+T* (_*_)(Nat count, T* seq) = {
+  l = |seq|;
+  res = ();
+  for i < count
+    for x <- seq
+      res = res & (x);
+  return res;
+};
+
+T* intermix(T* seq, T obj) = join(((obj if i != 0, e) : e @ i <- seq));
+
+T only((T)) = (x?) = x;
+
+////////////////////////////////////////////////////////////////////////////////
+
+[T] union([T] s1, [T] s2) = [x : x <- s1 | x <- s2];
+
+[T] intersection([T] s1, [T] s2)  = [e : e <- s1, s2(e)];
+[A] difference([A] s1, [B] s2)    = [e : e <- s1, not s2(e)];
+
+[]   (_&_)([],      [])       = [];
+[+T] (_&_)([+T] s,  [])       = s;
+[+T] (_&_)([],      [+T] s)   = s;
+[+T] (_&_)([+T] s1, [+T] s2)  = [x : x <- s1 | x <- s2];
+
+[A] (_-_)([A] s1, [B] s2) = difference(s1, s2);
+
+Bool disjoint([Any] s1, [Any] s2) = not (e <- s1 : s2(e));
+Bool subset([Any] s1, [Any] s2)   = not (e <- s1 : not s2(e));
+
+[T] union([[T]] sets) = [x : s <- sets, x <- s];
+
+// [T] union([T]* sets) = [x : s <~ sets, x <- s];
+
+T any([+T] s) = _rand_elem_(s);
+
+T only([T] set) {
+  seq = _isort_(set);
+  fail if |seq| != 1;
+  return seq(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+() isort([]) = ();
+
+T+ isort([+T] s) {
+  seq = _isort_(s);
+  fail if seq == ();
+  return seq;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+[+A -> B] (_&_)([],             [+A -> B] map)  = map;
+[+A -> B] (_&_)([+A -> B] map,  [])             = map;
+[+A -> B] (_&_)([+A -> B] map1, [+A -> B] map2) = [k -> v : k, v <- map1 | k, v <- map2];
+
+[A -> B] merge([[A -> B]] maps) = [k -> v : m <- maps, k, v <- m];
+[A -> B] merge([A -> B]* maps)  = [k -> v : m <~ maps, k, v <- m];
+
+(A, B)+ isort([+A, B] rel) {
+  seq = _isort_([(a, b) : a, b <- rel]);
+  fail if seq == ();
+  return seq;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+(A, B, C)+ isort([+A, B, C] rel) {
+  seq = _isort_([(a, b, c) : a, b, c <- rel]);
+  fail if seq == ();
+  return seq;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+T untag(<+>(T)) =
+  t?(v?) = v;
+
+////////////////////////////////////////////////////////////////////////////////
+
+String string(Nat* chs) = :string(chs);
+
+Nat length(String s) = |_untag_(s)|;
+
+Nat (_[_]) (String str, Int idx) = _untag_(str)(idx);
+
+String (_&_) (String s1, String s2)   = string(_untag_(s1) & _untag_(s2));
+String append(String* ss)             = string(join((_untag_(s) : s <- ss)));
+String append(String* ss, String sep) = string(join(intermix((_untag_(s) : s <- ss), _untag_(sep))));
+String reverse(String s)              = string(reverse(_untag_(s)));
+String substr(String s, Int n, Int m) = string(_slice_(_untag_(s), n, m));
+
+String take(String s, Int count) = string(take(_untag_(s), count));
+String drop(String s, Int count) = string(drop(_untag_(s), count));
+
+String (_*_) (Nat len, String str) = string(len * _untag_(str));

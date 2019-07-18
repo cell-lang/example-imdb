@@ -1,0 +1,336 @@
+Int sum(Int.. n)
+  Int s = n : s1 s2 -> s1 + s2;
+  return 0 | s;
+
+
+Int max(Int.. x)
+  Int m = x : m1 m2 -> if m1 >= m2 then m1 else m2;
+  return undefined | m;
+
+
+Float avg(Float.. x, Float null)
+  Float s = x : s1 s2 -> s1 + s2;
+  Int   c = 1  : c1 c2 -> c1 + c2;
+  return null | s / c;
+
+
+Float avg(Int.. x, Float null)
+  Int s = x : s1 s2 -> s1 + s2;
+  Int c = 1 : c1 c2 -> c1 + c2;
+  return null | _float_(s) / _float_(c);
+
+////////////////////////////////////////////////////////////////////////////////
+
+type Actor    = actor(Nat);
+type Movie    = movie(Nat);
+type Director = director(Nat);
+
+type Gender = male, female;
+
+type Genre =  action,
+              adult,
+              adventure,
+              animation,
+              comedy,
+              crime,
+              documentary,
+              drama,
+              family,
+              fantasy,
+              film_noir,
+              horror,
+              music,
+              musical,
+              mystery,
+              romance,
+              sci_fi,
+              short,
+              thriller,
+              war,
+              western;
+
+
+schema MoviesDB {
+  actor(Actor)
+    first_name  : String,
+    last_name   : String,
+    gender      : Gender;
+
+  movie(Movie)
+    name    : String,
+    year    : Int,
+    rank    : Float,
+    genre*  : Genre;
+
+  director(Director)
+    director_first_name : String,
+    director_last_name  : String;
+
+  acted_in(Actor, Movie)
+    role* : String;
+
+  directed(Director, Movie);
+
+  acted_in(a, m) -> actor(a), movie(m);
+  directed(d, m) -> director(d), movie(m);
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  director_rank(Director, Float) [key: 0];
+  director_rank(d, _) -> director(d);
+
+  actor_rank(Actor, Float) [key: 0];
+  actor_rank(a, _) -> actor(a);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+MoviesDB.add_actor(id: Nat, first_name: String, last_name: String, gender: Gender) {
+  insert actor(:actor(this.id))
+    first_name  = this.first_name,
+    last_name   = this.last_name,
+    gender      = this.gender;
+}
+
+MoviesDB.add_movie(id: Nat, name: String, year: Int, rank: Float, genres: [Genre]) {
+  insert movie(:movie(this.id))
+    name  = this.name,
+    year  = this.year,
+    rank  = this.rank,
+    genre = g : g <- this.genres;
+}
+
+MoviesDB.add_director(id: Nat, first_name: String, last_name: String) {
+  insert director(:director(this.id))
+    director_first_name = this.first_name,
+    director_last_name  = this.last_name;
+}
+
+MoviesDB.add_movie_actor(movie_id: Nat, actor_id: Nat, role: String?) {
+  insert acted_in(:actor(this.actor_id), :movie(this.movie_id))
+    role = this.role if this.role?;
+}
+
+MoviesDB.add_movie_director(movie_id: Nat, director_id: Nat) {
+  insert directed(:director(this.director_id), :movie(this.movie_id));
+}
+
+MoviesDB.add_movie_genre(id: Nat, genre: Genre) {
+  insert genre(:movie(this.id), this.genre);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+MoviesDB.bump_up_rank_of_movies_made_in_or_before(year: Int, factor: Float) {
+  max_year = this.year;
+  factor = this.factor;
+  for m, y <- year
+    if y <= max_year {
+      rank = rank(m);
+      update rank(m, rank + factor * (10.0 - rank));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+MoviesDB.calc_actor_avg_movies_rank {
+  for a <- actor {
+    r = avg(rank(m) : m <- acted_in(a, ?) if rank(m) > 0, 0.0);
+    if r > 0.0
+      insert actor_rank(a, r);
+  }
+}
+
+MoviesDB.calc_director_avg_movies_rank {
+  for d <- director {
+    r = avg(rank(m) : m <- directed(d, ?) if rank(m) > 0, 0.0);
+    if r > 0.0
+      insert director_rank(d, r);
+  }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+MoviesDB.bump_up_rank_of_movie_and_its_actors_and_directors(movie: Movie, factor: Float) {
+  movie = this.movie;
+
+  rank = rank(movie);
+  delta = this.factor * (10.0 - rank);
+  update rank(movie, rank + delta);
+
+  for a <- acted_in(?, movie)
+    if actor_rank(a, *) {
+      count = |acted_in(a, ?)|;
+      update actor_rank(a, actor_rank(a) + delta / count);
+    }
+
+  for d <- directed(?, movie)
+    if director_rank(d, *) {
+      count = |directed(d, ?)|;
+      update director_rank(d, director_rank(d) + delta / count);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+MoviesDB.delete_movies_with_rank_below(min_rank: Float) {
+  for m, r <- rank
+    if r < this.min_rank
+      delete movie(m), acted_in(*, m), directed(*, m);
+}
+
+MoviesDB.delete_actors_with_no_roles {
+  for a <- actor
+    if not acted_in(a, *)
+      delete actor(a), actor_rank(a, *);
+}
+
+MoviesDB.delete_directors_with_no_movies {
+  for d <- director
+    if not directed(d, *)
+      delete director(d), director_rank(d, *);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using MoviesDB {
+  Int num_of_movies_with_rank_above(Float min_rank) = sum(1 : id, rank <- rank if rank >= min_rank);
+
+  Int num_of_actors_who_played_in_a_movie_with_rank_above(Float min_rank) =
+    sum(1 : a <- actor if (m <- acted_in(a, ?) : rank(m) >= min_rank));
+
+  Bool played_in_a_movie_with_rank_above(Actor actor, Float min_rank) =
+    (m <- acted_in(actor, ?) : rank(m) >= min_rank);
+
+  String full_name(Actor actor) = first_name(actor) & " " & last_name(actor);
+
+  //////////////////////////////////////////////////////////////////////////////
+
+  [Actor] co_actors_in_movies_with_rank_above(Actor actor, Float min_rank) =
+    [a : m <- acted_in(actor, ?), rank(m) >= min_rank, a <- acted_in(?, m), a != actor];
+
+
+  [Actor -> Nat] co_actors_with_count_in_movies_with_rank_above(Actor actor, Float min_rank) {
+    map = [];
+    for m <- acted_in(actor, ?)
+      if rank(m) >= min_rank
+        for a <- acted_in(?, m)
+          if a != actor {
+            ## count = if map(a, *) then map(a) else 0;
+            ## BAD BAD BAD: WORKAROUND FOR TYPECHECKER BUG
+            ## THE VERSION ABOVE IS THE CORRECT ONE
+            count = if map != [] and map(a, *) then map(a) else 0;
+            // count = _get_(map, a, 0);
+            // assert count == if map != [] and map(a, *) then map(a) else 0;
+            map = _put_(map, a, nat(count+1));
+          }
+    return map;
+  }
+
+
+  [Actor] actors_with_same_first_name_as(Actor actor) = [
+    id : id <- first_name(?, first_name(actor)), id != actor
+  ];
+
+
+  String* last_names_of_actors_with_same_first_name_as(Actor actor) {
+    last_names = ();
+    for id <- first_name(?, first_name(actor))
+      if id != actor
+        last_names = (last_names | last_name(id));
+    return last_names;
+  }
+
+
+  [String] unique_last_names_of_actors_with_same_first_name_as(Actor actor) = [
+    last_name(id) : id <- first_name(?, first_name(actor)), id != actor
+  ];
+
+
+  Bool is_also_actor(Director director) {
+    director_first_name = director_first_name(director);
+    director_last_name = director_last_name(director);
+    return (a <- last_name(?, director_last_name) : first_name(a) == director_first_name);
+  }
+
+
+  (Nat, Nat) number_of_directors_who_are_and_are_not_actors {
+    actors = 0;
+    non_actors = 0;
+    for d <- director {
+      director_first_name = director_first_name(d);
+      director_last_name = director_last_name(d);
+      is_actor = (a <- last_name(?, director_last_name) : first_name(a) == director_first_name);
+      if is_actor
+        actors = actors + 1;
+      else
+        non_actors = non_actors + 1;
+    }
+    return (nat(actors), nat(non_actors));
+  }
+
+
+  [Movie] movies_with_actors_in_common(Movie movie) = [
+    m : a <- acted_in(?, movie), m <- acted_in(a, ?), m != movie
+  ];
+
+
+  Int* movie_age_histogram(Int start_year, Float min_rank) {
+    histogram : Int*;
+
+    histogram = ();
+    for m <- movie
+      if rank(m) >= min_rank {
+        year = year(m);
+        if year >= start_year {
+          idx = year - start_year;
+          while idx >= |histogram|
+            histogram = (histogram | 0);
+          histogram(idx) := histogram(idx) + 1;
+        }
+      }
+    return histogram;
+  }
+
+
+  Int movie_age(Movie movie, Int curr_year) = curr_year - year(movie);
+
+
+  // Int sum_of_all_movies_ages(Int curr_year) = sum(curr_year - year(m) : m <- movie);
+  Int sum_of_all_movies_ages(Int curr_year) {
+    total_age = 0;
+    for m <- movie
+      total_age = total_age + (curr_year - year(m));
+    return total_age;
+  }
+
+
+  Float avg_age_of_movies_with_rank_above(Int curr_year, Float min_rank) =
+    avg(curr_year - year(m) : m <- movie if rank(m) >= min_rank, 0.0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+[Genre -> String] genre_names = [
+  :action      -> "Action",
+  :adult       -> "Adult",
+  :adventure   -> "Adventure",
+  :animation   -> "Animation",
+  :comedy      -> "Comedy",
+  :crime       -> "Crime",
+  :documentary -> "Documentary",
+  :drama       -> "Drama",
+  :family      -> "Family",
+  :fantasy     -> "Fantasy",
+  :film_noir   -> "Film-Noir",
+  :horror      -> "Horror",
+  :music       -> "Music",
+  :musical     -> "Musical",
+  :mystery     -> "Mystery",
+  :romance     -> "Romance",
+  :sci_fi      -> "Sci-Fi",
+  :short       -> "Short",
+  :thriller    -> "Thriller",
+  :war         -> "War",
+  :western     -> "Western"
+];

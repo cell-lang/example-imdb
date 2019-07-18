@@ -1,0 +1,716 @@
+// actors.csv  directors.csv  directors_genres.csv
+// movies.csv  movies_directors.csv  movies_genres.csv  roles.csv
+
+
+Int Main(String* args) {
+  movies_db : MoviesDB;
+
+  if |args| == 3 {
+    res = _parse_(args(1));
+    if not res :: Success[NzNat] {
+      PrintUsage();
+      return 1;
+    }
+    repetitions = result(res);
+
+    path = args(2);
+
+    option = args(0);
+    if option == "-l" {
+      for repetitions
+        RunTests(path, 0, false);
+    }
+    else if option == "-u" {
+      for repetitions
+        RunTests(path, 0, true);
+    }
+    else if option == "-q" {
+      RunTests(path, repetitions, false);
+    }
+    else if option == "-uq" {
+      RunTests(path, repetitions, true);
+    }
+    else {
+      PrintUsage();
+      return 1;
+    }
+  }
+  else {
+    PrintUsage();
+    return 1;
+  }
+
+  return 0;
+}
+
+
+PrintUsage() {
+  Print("Usage: java -jar imdb.jar [-l|-u|-q|-uq] <repetitions> <input directory>\n");
+  Print("  -l   load dataset only\n");
+  Print("  -u   run updates\n");
+  Print("  -q   run queries\n");
+  Print("  -uq  run queries on updated dataset\n");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+RunTests(String path, Nat num_of_query_runs, Bool run_updates) {
+  movies_db : MoviesDB;
+
+  no_queries = num_of_query_runs == 0;
+
+  ReadMovies(movies_db, path, false, if no_queries then 5 else 0);
+  ReadActors(movies_db, path, true, if no_queries then 5 else 0);
+  ReadDirectors(movies_db, path, true, if no_queries then 4 else 0);
+  ReadMoviesDirectors(movies_db, path, true, if no_queries then 4 else 0);
+  ReadMoviesGenres(movies_db, path, true, if no_queries then 4 else 0);
+  ReadRoles(movies_db, path, true, if no_queries then 6 else 0);
+
+  if not run_updates
+    for i < num_of_query_runs {
+      if i > 0
+        Print("\n");
+      RunQueries(movies_db);
+    }
+
+  if run_updates {
+    BumpUpRankOfMoviesMadeInOrBefore(movies_db, ((1970, 0.2), (1989, 0.05), (2000, 0.05)), true, if no_queries then 6 else 0);
+
+    CalcActorAvgMoviesRank(movies_db, true, if no_queries then 4 else 0);
+    CalcDirectorAvgMoviesRank(movies_db, true, if no_queries then 4 else 0);
+
+    BumpUpRankOfMovieAndItsActorsAndDirectors(movies_db, 0.1, true, if no_queries then 5 else 0);
+
+    DeleteMoviesWithRankBelow(movies_db, true, if no_queries then 5 else 0);
+    DeleteActorsWithNoRoles(movies_db, true, if no_queries then 4 else 0);
+    DeleteDirectorsWithNoMovies(movies_db, true, if no_queries then 4 else 0);
+  }
+
+  if run_updates
+    for i < num_of_query_runs {
+      if i > 0
+        Print("\n");
+      RunQueries(movies_db);
+    }
+
+  Print("\n");
+}
+
+
+RunQueries(MoviesDB movies_db) {
+  // Faster
+  NumberOfMoviesWithRankAbove(movies_db, false, 4);
+  NumOfActorsWhoPlayedInAMovieWithRankAbove(movies_db, true, 5);
+  CoActorsInMoviesWithRankAbove(movies_db, true, 5);
+  MovieAgeHistogram(movies_db, true, 4);
+  AvgAgeOfMoviesWithRankAbove(movies_db, true, 4);
+  SumOfAllMoviesAges(movies_db, true, 4);
+
+  // Similar
+  MoviesWithActorsInCommon(movies_db, true, 5);
+  UniqueLastNameOfActorsWithSameFirstNameAs(movies_db, true, 5);
+
+  // Slower
+  CoActorsWithCountInMoviesWithRankAbove(movies_db, true, 5);
+  LastNamesOfActorsWithSameFirstNameAs(movies_db, true, 5);
+  IsAlsoActor(movies_db, true, 4);
+  FullName(movies_db, true, 4);
+
+  // MovieAge(movies_db);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ReadMovies(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
+  content = ReadFileOrFail(path & "/movies.csv");
+
+  start_ticks = Ticks();
+
+  idx = skip_line(content, 0);
+  while idx < |content| {
+    id, idx = read_integer(content, idx);
+    idx = skip_semicolon(content, idx);
+    name, idx = read_string(content, idx);
+    idx = skip_semicolon(content, idx);
+    year, idx = read_integer(content, idx);
+    idx = skip_semicolon(content, idx);
+    rank, idx = read_float(content, idx);
+    idx = next_line(content, idx);
+
+    fail if not id :: Nat;
+
+    msg = add_movie(id: id, name: name, year: year, rank: rank, genres: []);
+    ok = movies_db <- msg;
+    assert ok;
+  }
+
+  end_ticks = Ticks();
+
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ReadActors(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
+  content = ReadFileOrFail(path & "/actors.csv");
+  start_ticks = Ticks();
+
+  indexes_creation_triggered = false;
+
+  idx = skip_line(content, 0);
+  while idx < |content| {
+    id, idx = read_integer(content, idx);
+    idx = skip_semicolon(content, idx);
+    first_name, idx = read_string(content, idx);
+    idx = skip_semicolon(content, idx);
+    last_name, idx = read_string(content, idx);
+    idx = skip_semicolon(content, idx);
+    gender_str, idx = read_string(content, idx);
+    idx = next_line(content, idx);
+
+    if gender_str == "M"
+      gender = :male;
+    else if gender_str == "F"
+      gender = :female;
+    else
+      fail;
+
+    fail if not id :: Nat;
+
+    msg = add_actor(id: id, first_name: first_name, last_name: last_name, gender: gender);
+    ok = movies_db <- msg;
+    assert ok;
+
+    if not indexes_creation_triggered {
+      ok = movies_db.first_name(*, first_name) and movies_db.last_name(*, last_name);
+      assert ok;
+      indexes_creation_triggered = true;
+    }
+  }
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ReadDirectors(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
+  content = ReadFileOrFail(path & "/directors.csv");
+  start_ticks = Ticks();
+
+  idx = skip_line(content, 0);
+  while idx < |content| {
+    id, idx = read_integer(content, idx);
+    idx = skip_semicolon(content, idx);
+    first_name, idx = read_string(content, idx);
+    idx = skip_semicolon(content, idx);
+    last_name, idx = read_string(content, idx);
+    idx = next_line(content, idx);
+
+    fail if not id :: Nat;
+
+    msg = add_director(id: id, first_name: first_name, last_name: last_name);
+    ok = movies_db <- msg;
+    assert ok;
+  }
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ReadMoviesDirectors(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
+  content = ReadFileOrFail(path & "/movies_directors.csv");
+  start_ticks = Ticks();
+
+  indexes_creation_triggered = false;
+
+  idx = skip_line(content, 0);
+  while idx < |content| {
+    director_id, idx = read_integer(content, idx);
+    idx = skip_semicolon(content, idx);
+    movie_id, idx = read_integer(content, idx);
+    idx = next_line(content, idx);
+
+    fail if not movie_id :: Nat or not director_id :: Nat;
+
+    msg = add_movie_director(movie_id: movie_id, director_id: director_id);
+    ok = movies_db <- msg;
+    assert ok;
+
+    if not indexes_creation_triggered {
+      ok = movies_db.directed(*, :movie(movie_id));
+      assert ok;
+      indexes_creation_triggered = true;
+    }
+  }
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ReadMoviesGenres(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
+  content = ReadFileOrFail(path & "/movies_genres.csv");
+  start_ticks = Ticks();
+
+  genre_name_to_symb = [n -> g : g, n <- genre_names];
+
+  idx = skip_line(content, 0);
+  while idx < |content| {
+    movie_id, idx = read_integer(content, idx);
+    idx = skip_semicolon(content, idx);
+    genre_str, idx = read_string(content, idx);
+    idx = next_line(content, idx);
+
+    genre = genre_name_to_symb(genre_str);
+
+    fail if not movie_id :: Nat;
+
+    msg = add_movie_genre(id: movie_id, genre: genre);
+    ok = movies_db <- msg;
+    assert ok;
+  }
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ReadRoles(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
+  content = ReadFileOrFail(path & "/roles.csv");
+  start_ticks = Ticks();
+
+  indexes_creation_triggered = false;
+
+  idx = skip_line(content, 0);
+  while idx < |content| {
+    actor_id, idx = read_integer(content, idx);
+    idx = skip_semicolon(content, idx);
+    movie_id, idx = read_integer(content, idx);
+    idx = skip_semicolon(content, idx);
+    role, idx = read_string(content, idx);
+    idx = next_line(content, idx);
+
+    fail if not actor_id :: Nat or not movie_id :: Nat;
+
+    msg = add_movie_actor(movie_id: movie_id, actor_id: actor_id, role: role if role != "");
+    ok = movies_db <- msg;
+    assert ok;
+
+    if not indexes_creation_triggered {
+      ok = movies_db.acted_in(*, :movie(movie_id)); // and movies_db.role(*, :movie(movie_id), *);
+      assert ok;
+      indexes_creation_triggered = true;
+    }
+  }
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+BumpUpRankOfMoviesMadeInOrBefore(MoviesDB movies_db, (Int, Float)* years_factors, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+  for y, f <- years_factors {
+    ok = movies_db <- bump_up_rank_of_movies_made_in_or_before(year: y, factor: f);
+    assert ok;
+  }
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+CalcActorAvgMoviesRank(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+  ok = movies_db <- :calc_actor_avg_movies_rank;
+  assert ok;
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+
+CalcDirectorAvgMoviesRank(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+  ok = movies_db <- :calc_director_avg_movies_rank;
+  assert ok;
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+BumpUpRankOfMovieAndItsActorsAndDirectors(MoviesDB movies_db, Float factor, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+
+  max_id = max(match (m) movie(n?) = n : m <- movies_db.movie);
+  num_of_ids = |movies_db.movie| / 4;
+  random_ids = random_ints(max_id, num_of_ids, 735025);
+
+  for id <- random_ids {
+    movie = :movie(id);
+    fail if not movie :: Movie;
+    if movies_db.movie(movie) {
+      ## BUG BUG BUG: THIS LINE CONTAINS AN ERROR THAT CRASHES THE COMPILER
+      // ok = movies_db <- bump_up_rank_of_movie_and_its_actors_and_directors(movie: movie, factor: this.factor);
+      ok = movies_db <- bump_up_rank_of_movie_and_its_actors_and_directors(movie: movie, factor: factor);
+      assert ok;
+    }
+  }
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DeleteMoviesWithRankBelow(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+  ok = movies_db <- delete_movies_with_rank_below(min_rank: 4.0);
+  assert ok;
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+
+DeleteActorsWithNoRoles(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+  ok = movies_db <- :delete_actors_with_no_roles;
+  assert ok;
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+
+DeleteDirectorsWithNoMovies(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+  ok = movies_db <- :delete_directors_with_no_movies;
+  assert ok;
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+NumberOfMoviesWithRankAbove(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+  counts = (movies_db.num_of_movies_with_rank_above((r + 1) * 0.1) : r < 100);
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NumOfActorsWhoPlayedInAMovieWithRankAbove(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+  counts = (movies_db.num_of_actors_who_played_in_a_movie_with_rank_above((r + 1) * 0.2) : r < 50);
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+CoActorsInMoviesWithRankAbove(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+
+  max_co_actors = 0;
+
+  for a <- movies_db.actor {
+    co_actors = movies_db.co_actors_in_movies_with_rank_above(a, 6.0);
+    max_co_actors = |co_actors| if |co_actors| > max_co_actors;
+  }
+  ## THIS GIVES ME A COMPLETELY WRONG ERROR MESSAGE
+  ## THE PROBLEM IS THE MISPELLING OF movies_db, BUT THE ERROR IS REPORTED AS
+  ## METHOD co_actors_in_movies_with_rank_above() NOT EXISTING
+  // co_actors_map = [a -> movie_db.co_actors_in_movies_with_rank_above(a, 6.0) : a <- movies_db.actor];
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+CoActorsWithCountInMoviesWithRankAbove(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+
+  max_actor_id = max(match (a) actor(n?) = n : a <- movies_db.actor);
+  num_of_ids = |movies_db.actor| / 4;
+  random_ids = random_ints(max_actor_id, num_of_ids, 72594);
+
+  max_co_actors = 0;
+  misses = 0;
+
+  for id <- random_ids {
+    actor = :actor(id);
+    fail if not actor :: Actor;
+    if movies_db.actor(actor) {
+      co_actors = movies_db.co_actors_with_count_in_movies_with_rank_above(actor, 6.0);
+      max_co_actors = |co_actors| if |co_actors| > max_co_actors;
+    }
+    else
+      misses = misses + 1;
+  }
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// LastNamesOfActorsWithSameFirstNameAs(MoviesDB movies_db, Bool print_sep, Nat width) {
+//   start_ticks = Ticks();
+
+//   max_no = 0;
+//   for a <- movies_db.actor {
+//     last_names = movies_db.last_names_of_actors_with_same_first_name_as(a);
+//     max_no = |last_names| if |last_names| > max_no;
+//   }
+
+//   end_ticks = Ticks();
+//   PrintTime(end_ticks - start_ticks, print_sep, width);
+// }
+
+LastNamesOfActorsWithSameFirstNameAs(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+
+  max_actor_id = max(match (a) actor(n?) = n : a <- movies_db.actor);
+  num_of_ids = |movies_db.actor| / 10;
+  random_ids = random_ints(max_actor_id, num_of_ids, 47619);
+
+  max_no = 0;
+  misses = 0;
+
+  for id <- random_ids {
+    actor = :actor(id);
+    fail if not actor :: Actor;
+    if movies_db.actor(actor) {
+      last_names = movies_db.last_names_of_actors_with_same_first_name_as(actor);
+      max_no = |last_names| if |last_names| > max_no;
+    }
+    else
+      misses = misses + 1;
+  }
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+UniqueLastNameOfActorsWithSameFirstNameAs(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+
+  max_actor_id = max(match (a) actor(n?) = n : a <- movies_db.actor);
+  num_of_ids = |movies_db.actor| / 20;
+  random_ids = random_ints(max_actor_id, num_of_ids, 35102);
+
+  max_no = 0;
+  misses = 0;
+
+  for id <- random_ids {
+    actor = :actor(id);
+    fail if not actor :: Actor;
+    if movies_db.actor(actor) {
+      last_names = movies_db.unique_last_names_of_actors_with_same_first_name_as(actor);
+      max_no = |last_names| if |last_names| > max_no;
+    }
+    else
+      misses = misses + 1;
+  }
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+// UniqueLastNameOfActorsWithSameFirstNameAs(MoviesDB movies_db, Bool print_sep, Nat width) {
+//   start_ticks = Ticks();
+//
+//   max_no = 0;
+//   for a <- movies_db.actor {
+//     last_names = movies_db.unique_last_names_of_actors_with_same_first_name_as(a);
+//     max_no = |last_names| if |last_names| > max_no;
+//   }
+//
+//   end_ticks = Ticks();
+//   PrintTime(end_ticks - start_ticks, print_sep, width);
+// }
+
+////////////////////////////////////////////////////////////////////////////////
+
+IsAlsoActor(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+
+  actors = 0;
+  non_actors = 0;
+  for d <- movies_db.director
+    if movies_db.is_also_actor(d)
+      actors = actors + 1;
+    else
+      non_actors = non_actors + 1;
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+FullName(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+
+  len = 0;
+  for a <- movies_db.actor {
+    name = movies_db.full_name(a);
+    len = len + length(name);
+  }
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+MoviesWithActorsInCommon(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+
+  max_id = max(match (m) movie(n?) = n : m <- movies_db.movie);
+  num_of_ids = |movies_db.movie| / 6;
+  random_ids = random_ints(max_id, num_of_ids, 64798);
+
+  count = 0;
+  misses = 0;
+
+  for id <- random_ids {
+    movie = :movie(id);
+    fail if not movie :: Movie;
+    if movies_db.movie(movie) {
+      movies = movies_db.movies_with_actors_in_common(movie);
+      count = count + |movies|;
+    }
+    else
+      misses = misses + 1;
+  }
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+MovieAgeHistogram(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+
+  for i < 50
+    histogram = movies_db.movie_age_histogram(1900, 5.0 + i * 0.1);
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+
+AvgAgeOfMoviesWithRankAbove(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+
+  for i < 50
+    avg_age = movies_db.avg_age_of_movies_with_rank_above(2019, 5.0 + i * 0.1);
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+SumOfAllMoviesAges(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+
+  for i < 10
+    for year = 2019 .. 2040
+      total_age = movies_db.sum_of_all_movies_ages(year);
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+MovieAge(MoviesDB movies_db, Bool print_sep, Nat width) {
+  start_ticks = Ticks();
+
+  total_age = 0;
+  for m <- movies_db.movie {
+    age = movies_db.movie_age(m, 2019);
+    total_age = total_age + age;
+  }
+
+  end_ticks = Ticks();
+  PrintTime(end_ticks - start_ticks, print_sep, width);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+Byte* ReadFileOrFail(String fname) {
+  res = FileRead(fname);
+  if res == nothing {
+    Print("File not found: " & fname & "\n");
+    fail;
+  }
+  content = value(res);
+  // Print("File " & fname & " successfully read. Size = " & _print_(|content|) & "\n");
+  return content;
+}
+
+
+PrintTime(Int time, Bool print_sep, Nat width) {
+  str = left_padded(" " & _print_(time), width);
+  str = "," & str if print_sep;
+  if width > 0
+    Print(str);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+String left_padded(String str, Nat min_len) {
+  padded_str = str;
+  while length(padded_str) < min_len
+    padded_str = " " & padded_str;
+  return padded_str;
+}
+
+
+Nat skip_line(Byte* content, Nat offset) {
+  len = |content|;
+  idx = offset;
+  loop {
+    if idx >= |content|
+      return len;
+    else if content(idx) == `\n`
+      return nat(idx + 1);
+    else
+      idx = idx + 1;
+  }
+}
+
+
+Nat* random_ints(Int max, Int count, Nat seed) {
+  xs : Nat*;
+
+  m = 2147483648;
+  a = 1103515245;
+  c = 12345;
+
+  xs = (0 : i < count);
+  state = seed;
+  for i < count {
+    state = _mod_(a * state + c, m);
+    xs(i) := nat(_mod_(state, max+1));
+  }
+  return xs;
+}

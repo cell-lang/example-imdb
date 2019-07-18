@@ -1,0 +1,70 @@
+set -x
+
+for I in {1..4}
+do
+	taskset -c 1 java -jar imdb.jar -l 25 dataset/       > out-cell-l1-$I.txt
+	date +"%T"
+	taskset -c 1 java -jar imdb-java.jar -l 25 dataset/  > out-java-l1-$I.txt
+	date +"%T"
+	taskset -c 1 dotnet imdb.dll -l 25 dataset/          > out-csharp-l1-$I.txt
+	date +"%T"
+	echo
+
+	taskset -c 1 java -jar imdb.jar -u 25 dataset/       > out-cell-u1-$I.txt
+	date +"%T"
+	taskset -c 1 java -jar imdb-java.jar -u 25 dataset/  > out-java-u1-$I.txt
+	date +"%T"
+	taskset -c 1 dotnet imdb.dll -u 25 dataset/          > out-csharp-u1-$I.txt
+	date +"%T"
+	echo
+
+	taskset -c 1 java -jar imdb.jar -q 25 dataset/       > out-cell-q1-$I.txt
+	date +"%T"
+	taskset -c 1 java -jar imdb-java.jar -q 25 dataset/  > out-java-q1-$I.txt
+	date +"%T"
+	taskset -c 1 dotnet imdb.dll -q 25 dataset/          > out-csharp-q1-$I.txt
+	date +"%T"
+	echo
+
+	taskset -c 1 java -jar imdb.jar -uq 25 dataset/      > out-cell-uq1-$I.txt
+	date +"%T"
+	taskset -c 1 java -jar imdb-java.jar -uq 25 dataset/ > out-java-uq1-$I.txt
+	date +"%T"
+	taskset -c 1 dotnet imdb.dll -uq 25 dataset/         > out-csharp-uq1-$I.txt
+	date +"%T"
+	echo
+
+	java -jar imdb.jar -l 25 dataset/                    > out-cell-l2-$I.txt
+	date +"%T"
+	java -jar imdb-java.jar -l 25 dataset/               > out-java-l2-$I.txt
+	date +"%T"
+	dotnet imdb.dll -l 25 dataset/                       > out-csharp-l2-$I.txt
+	date +"%T"
+	echo
+
+	java -jar imdb.jar -u 25 dataset/                    > out-cell-u2-$I.txt
+	date +"%T"
+	java -jar imdb-java.jar -u 25 dataset/               > out-java-u2-$I.txt
+	date +"%T"
+	dotnet imdb.dll -u 25 dataset/                       > out-csharp-u2-$I.txt
+	date +"%T"
+	echo
+
+	java -jar imdb.jar -q 25 dataset/                    > out-cell-q2-$I.txt
+	date +"%T"
+	java -jar imdb-java.jar -q 25 dataset/               > out-java-q2-$I.txt
+	date +"%T"
+	dotnet imdb.dll -q 25 dataset/                       > out-csharp-q2-$I.txt
+	date +"%T"
+	echo
+
+	java -jar imdb.jar -uq 25 dataset/                   > out-cell-uq2-$I.txt
+	date +"%T"
+	java -jar imdb-java.jar -uq 25 dataset/              > out-java-uq2-$I.txt
+	date +"%T"
+	dotnet imdb.dll -uq 25 dataset/                      > out-csharp-uq2-$I.txt
+	date +"%T"
+	echo
+	echo
+
+done
