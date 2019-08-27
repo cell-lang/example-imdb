@@ -182,7 +182,7 @@ ReadActors(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
     assert ok;
 
     if not indexes_creation_triggered {
-      ok = movies_db.first_name(*, first_name) and movies_db.last_name(*, last_name);
+      ok = movies_db.first_name(_, first_name) and movies_db.last_name(_, last_name);
       assert ok;
       indexes_creation_triggered = true;
     }
@@ -240,7 +240,7 @@ ReadMoviesDirectors(MoviesDB movies_db, String path, Bool print_sep, Nat width) 
     assert ok;
 
     if not indexes_creation_triggered {
-      ok = movies_db.directed(*, :movie(movie_id));
+      ok = movies_db.directed(_, :movie(movie_id));
       assert ok;
       indexes_creation_triggered = true;
     }
@@ -256,7 +256,7 @@ ReadMoviesGenres(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
   content = ReadFileOrFail(path & "/movies_genres.csv");
   start_ticks = Ticks();
 
-  genre_name_to_symb = [n -> g : g, n <- genre_names];
+  genre_name_to_symb = [n -> g : g n <- genre_names];
 
   idx = skip_line(content, 0);
   while idx < |content| {
@@ -302,7 +302,7 @@ ReadRoles(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
     assert ok;
 
     if not indexes_creation_triggered {
-      ok = movies_db.acted_in(*, :movie(movie_id)); // and movies_db.role(*, :movie(movie_id), *);
+      ok = movies_db.acted_in(_, :movie(movie_id)); // and movies_db.role(_, :movie(movie_id), _);
       assert ok;
       indexes_creation_triggered = true;
     }

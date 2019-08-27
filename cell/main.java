@@ -202,6 +202,8 @@ class IMDB {
 
     long msecs1 = System.currentTimeMillis();
 
+    Genre[] empty = new Genre[0];
+
     CsvReader reader = new CsvReader(content);
     reader.skipLine();
     while (!reader.eof()) {
@@ -214,10 +216,7 @@ class IMDB {
       double rank = reader.readDouble();
       reader.skipLine();
 
-      String msg = "add_movie(id: " + Integer.toString(id) + ", name: \"" + escape(name) + "\", year: " +
-                   Integer.toString(year) + ", rank: " + Double.toString(rank) + ", genres: [])";
-
-      moviesDB.execute(msg);
+      moviesDB.addMovie(id, name, year, rank, empty);
     }
 
     long msecs2 = System.currentTimeMillis();
@@ -243,18 +242,15 @@ class IMDB {
       String genderStr = reader.readString();
       reader.skipLine();
 
-      String gender;
+      Gender gender;
       if (genderStr.equals("M"))
-        gender = "male";
+        gender = Male.singleton;
       else if (genderStr.equals("F"))
-        gender = "female";
+        gender = Female.singleton;
       else
         throw new RuntimeException();
 
-      String msg = "add_actor(id: " + Integer.toString(id) + ", first_name: \"" + escape(firstName) +
-                   "\", last_name: \"" + escape(lastName) + "\", gender: " + gender + ")";
-
-      moviesDB.execute(msg);
+      moviesDB.addActor(id, firstName, lastName, gender);
 
       if (!indexCreationTriggered) {
         moviesDB.actorsByFirstName("...");
@@ -282,10 +278,7 @@ class IMDB {
       String lastName = reader.readString();
       reader.skipLine();
 
-      String msg = "add_director(id: " + Integer.toString(id) + ", first_name: \"" +
-                   escape(firstName) + "\", last_name: \"" + escape(lastName) + "\")";
-
-      moviesDB.execute(msg);
+      moviesDB.addDirector(id, firstName, lastName);
     }
 
     long msecs2 = System.currentTimeMillis();
@@ -307,10 +300,7 @@ class IMDB {
       int movieId = (int) reader.readLong();
       reader.skipLine();
 
-      String msg = "add_movie_director(movie_id: " + Integer.toString(movieId) +
-                   ", director_id: " + Integer.toString(directorId) + ")";
-
-      moviesDB.execute(msg);
+      moviesDB.addMovieDirector(movieId, directorId);
 
       if (!indexCreationTriggered) {
         moviesDB.directorsOf(0);
@@ -332,14 +322,10 @@ class IMDB {
     while (!reader.eof()) {
       int movieId = (int) reader.readLong();
       reader.skip(';');
-      String genreStr = reader.readString();
+      String genre = reader.readString();
       reader.skipLine();
 
-      String genre = genresMap.get(genreStr);
-
-      String msg = "add_movie_genre(id: " + Integer.toString(movieId) + ", genre: " + genre + ")";
-
-      moviesDB.execute(msg);
+      moviesDB.addMovieGenre(movieId, genresMap.get(genre));
     }
 
     long msecs2 = System.currentTimeMillis();
@@ -363,12 +349,10 @@ class IMDB {
       String role = reader.readString();
       reader.skipLine();
 
-      String roleField = role.length() > 0 ? ", role: \"" + escape(role) + "\"" : "";
-
-      String msg = "add_movie_actor(movie_id: " + Integer.toString(movieId) + ", actor_id: " +
-                   Integer.toString(actorId) + roleField + ")";
-
-      moviesDB.execute(msg);
+      if (role.length() != 0)
+        moviesDB.addMovieActor(movieId, actorId, role);
+      else
+        moviesDB.addMovieActor(movieId, actorId);
 
       if (!indexCreationTriggered) {
         moviesDB.cast(0);
@@ -386,12 +370,8 @@ class IMDB {
   static void bumpUpRankOfMoviesMadeInOrBefore(MoviesDB moviesDB, int[] years, double[] factors, boolean printSep, int width) {
     long msecs1 = System.currentTimeMillis();
 
-    for (int i=0 ; i < years.length ; i++) {
-      String msg = "bump_up_rank_of_movies_made_in_or_before(year: " + Integer.toString(years[i]) +
-                   ", factor: " + Double.toString(factors[i]) + ")";
-
-      moviesDB.execute(msg);
-    }
+    for (int i=0 ; i < years.length ; i++)
+      moviesDB.bumpUpRankOfMoviesMadeInOrBefore(years[i], factors[i]);
 
     long msecs2 = System.currentTimeMillis();
     printTime(msecs2 - msecs1, printSep, width);
@@ -403,7 +383,7 @@ class IMDB {
   static void calcActorsAvgsMoviesRanks(MoviesDB moviesDB, boolean printSep, int width) {
     long msecs1 = System.currentTimeMillis();
 
-    moviesDB.execute("calc_actor_avg_movies_rank");
+    moviesDB.calcActorAvgMoviesRank();
 
     long msecs2 = System.currentTimeMillis();
     printTime(msecs2 - msecs1, printSep, width);
@@ -412,7 +392,7 @@ class IMDB {
   static void calcDirectorsAvgsMoviesRanks(MoviesDB moviesDB, boolean printSep, int width) {
     long msecs1 = System.currentTimeMillis();
 
-    moviesDB.execute("calc_director_avg_movies_rank");
+    moviesDB.calcDirectorAvgMoviesRank();
 
     long msecs2 = System.currentTimeMillis();
     printTime(msecs2 - msecs1, printSep, width);
@@ -425,14 +405,9 @@ class IMDB {
     int numOfIds = (int) moviesDB.numOfMovies() / 4;
     int[] randomIds = randomInts(maxId, numOfIds, 735025);
 
-    for (int id : randomIds) {
-      if (moviesDB.movieExists(id)) {
-        String msg = "bump_up_rank_of_movie_and_its_actors_and_directors(movie: movie(" +
-                     Integer.toString(id) + "), factor: " + Double.toString(factor) + ")";
-
-        moviesDB.execute(msg);
-      }
-    }
+    for (int id : randomIds)
+      if (moviesDB.movieExists(id))
+        moviesDB.bumpUpRankOfMovieAndItsActorsAndDirectors(id, factor);
 
     long msecs2 = System.currentTimeMillis();
     printTime(msecs2 - msecs1, printSep, width);
@@ -444,8 +419,7 @@ class IMDB {
   static void deleteMoviesWithRankBelow(MoviesDB moviesDB, double minRank, boolean printSep, int width) {
     long msecs1 = System.currentTimeMillis();
 
-    String msg = "delete_movies_with_rank_below(min_rank: " + Double.toString(minRank) + ")";
-    moviesDB.execute(msg);
+    moviesDB.deleteMoviesWithRankBelow(minRank);
 
     long msecs2 = System.currentTimeMillis();
     printTime(msecs2 - msecs1, printSep, width);
@@ -454,7 +428,7 @@ class IMDB {
   static void deleteActorsWithNoRoles(MoviesDB moviesDB, boolean printSep, int width) {
     long msecs1 = System.currentTimeMillis();
 
-    moviesDB.execute("delete_actors_with_no_roles");
+    moviesDB.deleteActorsWithNoRoles();
 
     long msecs2 = System.currentTimeMillis();
     printTime(msecs2 - msecs1, printSep, width);
@@ -463,7 +437,7 @@ class IMDB {
   static void deleteDirectorsWithNoMovies(MoviesDB moviesDB, boolean printSep, int width) {
     long msecs1 = System.currentTimeMillis();
 
-    moviesDB.execute("delete_directors_with_no_movies");
+    moviesDB.deleteDirectorsWithNoMovies();
 
     long msecs2 = System.currentTimeMillis();
     printTime(msecs2 - msecs1, printSep, width);
@@ -617,7 +591,7 @@ class IMDB {
 
     for (int id : randomIds) {
       if (moviesDB.actorExists(id)) {
-        Value coActors = moviesDB.coActorsWithCountInMoviesWithRankAbove(id, 6.0);
+        Map<String, Long> coActors = moviesDB.coActorsWithCountInMoviesWithRankAbove(id, 6.0);
         if (coActors.size() > maxCoActors)
           maxCoActors = coActors.size();
       }
@@ -677,31 +651,31 @@ class IMDB {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  static Map<String, String> genresMap;
+  static Map<String, Genre> genresMap;
 
   static {
-    genresMap = new HashMap<String, String>();
-    genresMap.put("Action",       "action");
-    genresMap.put("Adult",        "adult");
-    genresMap.put("Adventure",    "adventure");
-    genresMap.put("Animation",    "animation");
-    genresMap.put("Comedy",       "comedy");
-    genresMap.put("Crime",        "crime");
-    genresMap.put("Documentary",  "documentary");
-    genresMap.put("Drama",        "drama");
-    genresMap.put("Family",       "family");
-    genresMap.put("Fantasy",      "fantasy");
-    genresMap.put("Film-Noir",    "film_noir");
-    genresMap.put("Horror",       "horror");
-    genresMap.put("Music",        "music");
-    genresMap.put("Musical",      "musical");
-    genresMap.put("Mystery",      "mystery");
-    genresMap.put("Romance",      "romance");
-    genresMap.put("Sci-Fi",       "sci_fi");
-    genresMap.put("Short",        "short");
-    genresMap.put("Thriller",     "thriller");
-    genresMap.put("War",          "war");
-    genresMap.put("Western",      "western");
+    genresMap = new HashMap<String, Genre>();
+    genresMap.put("Action",       Action.singleton);
+    genresMap.put("Adult",        Adult.singleton);
+    genresMap.put("Adventure",    Adventure.singleton);
+    genresMap.put("Animation",    Animation.singleton);
+    genresMap.put("Comedy",       Comedy.singleton);
+    genresMap.put("Crime",        Crime.singleton);
+    genresMap.put("Documentary",  Documentary.singleton);
+    genresMap.put("Drama",        Drama.singleton);
+    genresMap.put("Family",       Family.singleton);
+    genresMap.put("Fantasy",      Fantasy.singleton);
+    genresMap.put("Film-Noir",    FilmNoir.singleton);
+    genresMap.put("Horror",       Horror.singleton);
+    genresMap.put("Music",        Music.singleton);
+    genresMap.put("Musical",      Musical.singleton);
+    genresMap.put("Mystery",      Mystery.singleton);
+    genresMap.put("Romance",      Romance.singleton);
+    genresMap.put("Sci-Fi",       SciFi.singleton);
+    genresMap.put("Short",        net.cell_lang.Short.singleton);
+    genresMap.put("Thriller",     Thriller.singleton);
+    genresMap.put("War",          War.singleton);
+    genresMap.put("Western",      Western.singleton);
   }
 
   //////////////////////////////////////////////////////////////////////////////
