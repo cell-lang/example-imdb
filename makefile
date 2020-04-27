@@ -35,7 +35,7 @@ imdb-embedded.dll: cell/main.cs cell/imdb.cell cell/csv.cell cell/embedded.cell
 	@mkdir -p tmp/
 	dotnet bin/cellc-cs.dll projects/embedded.txt tmp/
 	cp cell/main.cs dotnet/
-	mv tmp/generated.cs tmp/runtime.cs tmp/facades.cs dotnet/
+	mv tmp/generated.cs tmp/runtime.cs tmp/automata.cs tmp/typedefs.cs dotnet/
 	dotnet build -c Release dotnet/
 
 clean:

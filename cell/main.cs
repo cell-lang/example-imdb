@@ -3,7 +3,7 @@ using System.IO;
 using System.Text;
 using System.Collections.Generic;
 
-using Cell.Facades;
+using Cell.Automata;
 
 
 class IMDB {
@@ -197,7 +197,7 @@ class IMDB {
 
     long msecs1 = Environment.TickCount;
 
-    Genre[] empty = new Genre[0];
+    string[] empty = new string[0];
 
     CsvReader reader = new CsvReader(content);
     reader.SkipLine();
@@ -237,11 +237,11 @@ class IMDB {
       string genderStr = reader.ReadString();
       reader.SkipLine();
 
-      Gender gender;
+      string gender;
       if (genderStr.Equals("M"))
-        gender = Male.singleton;
+        gender = "male";
       else if (genderStr.Equals("F"))
-        gender = Female.singleton;
+        gender = "female";
       else
         throw new Exception();
 
@@ -586,9 +586,9 @@ class IMDB {
 
     foreach (int id in randomIds) {
       if (moviesDB.ActorExists(id)) {
-        Dictionary<string, long> coActors = moviesDB.CoActorsWithCountInMoviesWithRankAbove(id, 6.0);
-        if (coActors.Count > maxCoActors)
-          maxCoActors = coActors.Count;
+        (long, long)[] coActors = moviesDB.CoActorsWithCountInMoviesWithRankAbove(id, 6.0);
+        if (coActors.Length > maxCoActors)
+          maxCoActors = coActors.Length;
       }
       else
         misses++;
@@ -646,31 +646,31 @@ class IMDB {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  static Dictionary<string, Genre> genresMap;
+  static Dictionary<string, string> genresMap;
 
   static IMDB() {
-    genresMap = new Dictionary<string, Genre>();
-    genresMap["Action"]       = Cell.Facades.Action.singleton;
-    genresMap["Adult"]        = Adult.singleton;
-    genresMap["Adventure"]    = Adventure.singleton;
-    genresMap["Animation"]    = Animation.singleton;
-    genresMap["Comedy"]       = Comedy.singleton;
-    genresMap["Crime"]        = Crime.singleton;
-    genresMap["Documentary"]  = Documentary.singleton;
-    genresMap["Drama"]        = Drama.singleton;
-    genresMap["Family"]       = Family.singleton;
-    genresMap["Fantasy"]      = Fantasy.singleton;
-    genresMap["Film-Noir"]    = FilmNoir.singleton;
-    genresMap["Horror"]       = Horror.singleton;
-    genresMap["Music"]        = Music.singleton;
-    genresMap["Musical"]      = Musical.singleton;
-    genresMap["Mystery"]      = Mystery.singleton;
-    genresMap["Romance"]      = Romance.singleton;
-    genresMap["Sci-Fi"]       = SciFi.singleton;
-    genresMap["Short"]        = Short.singleton;
-    genresMap["Thriller"]     = Thriller.singleton;
-    genresMap["War"]          = War.singleton;
-    genresMap["Western"]      = Western.singleton;
+    genresMap = new Dictionary<string, string>();
+    genresMap["Action"]       = "action";
+    genresMap["Adult"]        = "adult";
+    genresMap["Adventure"]    = "adventure";
+    genresMap["Animation"]    = "animation";
+    genresMap["Comedy"]       = "comedy";
+    genresMap["Crime"]        = "crime";
+    genresMap["Documentary"]  = "documentary";
+    genresMap["Drama"]        = "drama";
+    genresMap["Family"]       = "family";
+    genresMap["Fantasy"]      = "fantasy";
+    genresMap["Film-Noir"]    = "film_noir";
+    genresMap["Horror"]       = "horror";
+    genresMap["Music"]        = "music";
+    genresMap["Musical"]      = "musical";
+    genresMap["Mystery"]      = "mystery";
+    genresMap["Romance"]      = "romance";
+    genresMap["Sci-Fi"]       = "sci_fi";
+    genresMap["Short"]        = "short";
+    genresMap["Thriller"]     = "thriller";
+    genresMap["War"]          = "war";
+    genresMap["Western"]      = "western";
   }
 
   //////////////////////////////////////////////////////////////////////////////

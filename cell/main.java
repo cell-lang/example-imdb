@@ -349,10 +349,7 @@ class IMDB {
       String role = reader.readString();
       reader.skipLine();
 
-      if (role.length() != 0)
-        moviesDB.addMovieActor(movieId, actorId, role);
-      else
-        moviesDB.addMovieActor(movieId, actorId);
+      moviesDB.addMovieActor(movieId, actorId, role.length() != 0 ? role : null);
 
       if (!indexCreationTriggered) {
         moviesDB.cast(0);
@@ -825,15 +822,15 @@ class CsvReader {
   }
 
   char read() {
-    return (char) content[index++];
+    return (char) (((int) content[index++]) & 0xFF);
   }
 
   char peek() {
-    return (char) content[index];
+    return (char) (((int) content[index]) & 0xFF);
   }
 
   boolean nextIs(char ch) {
-    return index < content.length && content[index] == ch;
+    return index < content.length && peek() == ch;
   }
 
   boolean eof() {

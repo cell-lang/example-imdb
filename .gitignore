@@ -10,3 +10,4 @@ csharp/obj
 csharp/bin
 states/
 dotnet/
+bin/cellc-cs

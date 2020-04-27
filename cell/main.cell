@@ -5,7 +5,7 @@
 Int Main(String* args) {
   movies_db : MoviesDB;
 
-  if |args| == 3 {
+  if |args| == 3 or |args| == 4 {
     res = _parse_(args(1));
     if not res :: Success[NzNat] {
       PrintUsage();
@@ -14,21 +14,22 @@ Int Main(String* args) {
     repetitions = result(res);
 
     path = args(2);
+    state_path = if |args| == 4 then just(args(3)) else nothing;
 
     option = args(0);
     if option == "-l" {
       for repetitions
-        RunTests(path, 0, false);
+        RunTests(path, 0, false, state_path);
     }
     else if option == "-u" {
       for repetitions
-        RunTests(path, 0, true);
+        RunTests(path, 0, true, state_path);
     }
     else if option == "-q" {
-      RunTests(path, repetitions, false);
+      RunTests(path, repetitions, false, state_path);
     }
     else if option == "-uq" {
-      RunTests(path, repetitions, true);
+      RunTests(path, repetitions, true, state_path);
     }
     else {
       PrintUsage();
@@ -45,7 +46,7 @@ Int Main(String* args) {
 
 
 PrintUsage() {
-  Print("Usage: java -jar imdb.jar [-l|-u|-q|-uq] <repetitions> <input directory>\n");
+  Print("Usage: java -jar imdb.jar [-l|-u|-q|-uq] <repetitions> <input directory> [<output state>]\n");
   Print("  -l   load dataset only\n");
   Print("  -u   run updates\n");
   Print("  -q   run queries\n");
@@ -54,7 +55,7 @@ PrintUsage() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-RunTests(String path, Nat num_of_query_runs, Bool run_updates) {
+RunTests(String path, Nat num_of_query_runs, Bool run_updates, Maybe[String] maybe_state_path) {
   movies_db : MoviesDB;
 
   no_queries = num_of_query_runs == 0;
@@ -65,13 +66,6 @@ RunTests(String path, Nat num_of_query_runs, Bool run_updates) {
   ReadMoviesDirectors(movies_db, path, true, if no_queries then 4 else 0);
   ReadMoviesGenres(movies_db, path, true, if no_queries then 4 else 0);
   ReadRoles(movies_db, path, true, if no_queries then 6 else 0);
-
-  if not run_updates
-    for i < num_of_query_runs {
-      if i > 0
-        Print("\n");
-      RunQueries(movies_db);
-    }
 
   if run_updates {
     BumpUpRankOfMoviesMadeInOrBefore(movies_db, ((1970, 0.2), (1989, 0.05), (2000, 0.05)), true, if no_queries then 6 else 0);
@@ -86,14 +80,23 @@ RunTests(String path, Nat num_of_query_runs, Bool run_updates) {
     DeleteDirectorsWithNoMovies(movies_db, true, if no_queries then 4 else 0);
   }
 
-  if run_updates
-    for i < num_of_query_runs {
-      if i > 0
-        Print("\n");
-      RunQueries(movies_db);
-    }
+  for i < num_of_query_runs {
+    if i > 0
+      Print("\n");
+    RunQueries(movies_db);
+  }
 
   Print("\n");
+
+  if maybe_state_path != nothing {
+    state_path = value(maybe_state_path);
+    ok = Save(movies_db, state_path);
+    if not ok {
+      Print("\nCould not save the dataset to " & state_path & "\n");
+      err_msg = Error(movies_db);
+      Print(err_msg & "\n");
+    }
+  }
 }
 
 
@@ -140,7 +143,7 @@ ReadMovies(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
     fail if not id :: Nat;
 
     msg = add_movie(id: id, name: name, year: year, rank: rank, genres: []);
-    ok = movies_db <- msg;
+    ok = Send(movies_db, msg);
     assert ok;
   }
 
@@ -178,7 +181,7 @@ ReadActors(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
     fail if not id :: Nat;
 
     msg = add_actor(id: id, first_name: first_name, last_name: last_name, gender: gender);
-    ok = movies_db <- msg;
+    ok = Send(movies_db, msg);
     assert ok;
 
     if not indexes_creation_triggered {
@@ -210,7 +213,7 @@ ReadDirectors(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
     fail if not id :: Nat;
 
     msg = add_director(id: id, first_name: first_name, last_name: last_name);
-    ok = movies_db <- msg;
+    ok = Send(movies_db, msg);
     assert ok;
   }
 
@@ -236,7 +239,7 @@ ReadMoviesDirectors(MoviesDB movies_db, String path, Bool print_sep, Nat width) 
     fail if not movie_id :: Nat or not director_id :: Nat;
 
     msg = add_movie_director(movie_id: movie_id, director_id: director_id);
-    ok = movies_db <- msg;
+    ok = Send(movies_db, msg);
     assert ok;
 
     if not indexes_creation_triggered {
@@ -270,7 +273,7 @@ ReadMoviesGenres(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
     fail if not movie_id :: Nat;
 
     msg = add_movie_genre(id: movie_id, genre: genre);
-    ok = movies_db <- msg;
+    ok = Send(movies_db, msg);
     assert ok;
   }
 
@@ -298,7 +301,7 @@ ReadRoles(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
     fail if not actor_id :: Nat or not movie_id :: Nat;
 
     msg = add_movie_actor(movie_id: movie_id, actor_id: actor_id, role: role if role != "");
-    ok = movies_db <- msg;
+    ok = Send(movies_db, msg);
     assert ok;
 
     if not indexes_creation_triggered {
@@ -318,7 +321,7 @@ ReadRoles(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
 BumpUpRankOfMoviesMadeInOrBefore(MoviesDB movies_db, (Int, Float)* years_factors, Bool print_sep, Nat width) {
   start_ticks = Ticks();
   for y, f <- years_factors {
-    ok = movies_db <- bump_up_rank_of_movies_made_in_or_before(year: y, factor: f);
+    ok = Send(movies_db, bump_up_rank_of_movies_made_in_or_before(year: y, factor: f));
     assert ok;
   }
   end_ticks = Ticks();
@@ -330,7 +333,7 @@ BumpUpRankOfMoviesMadeInOrBefore(MoviesDB movies_db, (Int, Float)* years_factors
 
 CalcActorAvgMoviesRank(MoviesDB movies_db, Bool print_sep, Nat width) {
   start_ticks = Ticks();
-  ok = movies_db <- :calc_actor_avg_movies_rank;
+  ok = Send(movies_db, :calc_actor_avg_movies_rank);
   assert ok;
   end_ticks = Ticks();
   PrintTime(end_ticks - start_ticks, print_sep, width);
@@ -339,7 +342,7 @@ CalcActorAvgMoviesRank(MoviesDB movies_db, Bool print_sep, Nat width) {
 
 CalcDirectorAvgMoviesRank(MoviesDB movies_db, Bool print_sep, Nat width) {
   start_ticks = Ticks();
-  ok = movies_db <- :calc_director_avg_movies_rank;
+  ok = Send(movies_db, :calc_director_avg_movies_rank);
   assert ok;
   end_ticks = Ticks();
   PrintTime(end_ticks - start_ticks, print_sep, width);
@@ -359,8 +362,8 @@ BumpUpRankOfMovieAndItsActorsAndDirectors(MoviesDB movies_db, Float factor, Bool
     fail if not movie :: Movie;
     if movies_db.movie(movie) {
       ## BUG BUG BUG: THIS LINE CONTAINS AN ERROR THAT CRASHES THE COMPILER
-      // ok = movies_db <- bump_up_rank_of_movie_and_its_actors_and_directors(movie: movie, factor: this.factor);
-      ok = movies_db <- bump_up_rank_of_movie_and_its_actors_and_directors(movie: movie, factor: factor);
+      // ok = Send(movies_db, bump_up_rank_of_movie_and_its_actors_and_directors(movie: movie, factor: this.factor));
+      ok = Send(movies_db, bump_up_rank_of_movie_and_its_actors_and_directors(movie: movie, factor: factor));
       assert ok;
     }
   }
@@ -373,7 +376,7 @@ BumpUpRankOfMovieAndItsActorsAndDirectors(MoviesDB movies_db, Float factor, Bool
 
 DeleteMoviesWithRankBelow(MoviesDB movies_db, Bool print_sep, Nat width) {
   start_ticks = Ticks();
-  ok = movies_db <- delete_movies_with_rank_below(min_rank: 4.0);
+  ok = Send(movies_db, delete_movies_with_rank_below(min_rank: 4.0));
   assert ok;
   end_ticks = Ticks();
   PrintTime(end_ticks - start_ticks, print_sep, width);
@@ -382,7 +385,7 @@ DeleteMoviesWithRankBelow(MoviesDB movies_db, Bool print_sep, Nat width) {
 
 DeleteActorsWithNoRoles(MoviesDB movies_db, Bool print_sep, Nat width) {
   start_ticks = Ticks();
-  ok = movies_db <- :delete_actors_with_no_roles;
+  ok = Send(movies_db, :delete_actors_with_no_roles);
   assert ok;
   end_ticks = Ticks();
   PrintTime(end_ticks - start_ticks, print_sep, width);
@@ -391,7 +394,7 @@ DeleteActorsWithNoRoles(MoviesDB movies_db, Bool print_sep, Nat width) {
 
 DeleteDirectorsWithNoMovies(MoviesDB movies_db, Bool print_sep, Nat width) {
   start_ticks = Ticks();
-  ok = movies_db <- :delete_directors_with_no_movies;
+  ok = Send(movies_db, :delete_directors_with_no_movies);
   assert ok;
   end_ticks = Ticks();
   PrintTime(end_ticks - start_ticks, print_sep, width);
