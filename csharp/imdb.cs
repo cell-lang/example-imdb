@@ -1017,6 +1017,20 @@ class MoviesDB {
     foreach (Actor a in actorsToRemove) {
       if (!actors.Remove(a.id))
         throw new Exception();
+
+      HashSet<Actor> _actors = actorsByFirstName[a.firstName];
+      bool found = _actors.Remove(a);
+      if (!found)
+        throw new Exception();
+      if (_actors.Count == 0)
+        actorsByFirstName.Remove(a.firstName);
+
+      _actors = actorsByLastName[a.lastName];
+      found = _actors.Remove(a);
+      if (!found)
+        throw new Exception();
+      if (_actors.Count == 0)
+        actorsByLastName.Remove(a.lastName);
     }
   }
 

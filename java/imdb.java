@@ -338,7 +338,7 @@ class IMDB {
   static void moviesWithActorsInCommon(MoviesDB moviesDB, boolean printSep, int width) {
     long msecs1 = System.currentTimeMillis();
 
-    int maxMovieId = maxMovieId();
+    int maxMovieId = maxMovieId(moviesDB);
     int numOfIds = moviesDB.movies.size() / 6;
     int[] randomIds = randomInts(maxMovieId, numOfIds, 64798);
 
@@ -465,7 +465,7 @@ class IMDB {
   static void coActorsWithCountInMoviesWithRankAbove(MoviesDB moviesDB, boolean printSep, int width) {
     long msecs1 = System.currentTimeMillis();
 
-    int maxActorId = maxActorId();
+    int maxActorId = maxActorId(moviesDB);
     int numOfIds = moviesDB.actors.size() / 4;
     int[] randomIds = randomInts(maxActorId, numOfIds, 72594);
 
@@ -490,7 +490,7 @@ class IMDB {
   static void lastNamesOfActorsWithSameFirstNameAs(MoviesDB moviesDB, boolean printSep, int width) {
     long msecs1 = System.currentTimeMillis();
 
-    int maxActorId = maxActorId();
+    int maxActorId = maxActorId(moviesDB);
     int numOfIds = moviesDB.actors.size() / 10;
     int[] randomIds = randomInts(maxActorId, numOfIds, 47619);
 
@@ -515,7 +515,7 @@ class IMDB {
   static void uniqueLastNamesOfActorsWithSameFirstNameAs(MoviesDB moviesDB, boolean printSep, int width) {
     long msecs1 = System.currentTimeMillis();
 
-    int maxActorId = maxActorId();
+    int maxActorId = maxActorId(moviesDB);
     int numOfIds = moviesDB.actors.size() / 20;
     int[] randomIds = randomInts(maxActorId, numOfIds, 35102);
 
@@ -539,7 +539,7 @@ class IMDB {
 
   //////////////////////////////////////////////////////////////////////////////
 
-  int maxActorId() {
+  static int maxActorId(MoviesDB moviesDB) {
     int maxId = 0;
     for (Actor a : moviesDB.actors.values())
       if (a.id > maxId)
@@ -547,7 +547,7 @@ class IMDB {
     return maxId;
   }
 
-  int maxMovieId() {
+  static int maxMovieId(MoviesDB moviesDB) {
     int maxId = 0;
     for (Movie m : moviesDB.movies.values())
       if (m.id > maxId)
@@ -1030,6 +1030,20 @@ class MoviesDB {
       Actor remActor = actors.remove(a.id);
       if (remActor != a)
         throw new RuntimeException();
+
+      Set<Actor> as = actorsByFirstName.get(a.firstName);
+      boolean found = as.remove(a);
+      if (!found)
+        throw new RuntimeException();
+      if (as.isEmpty())
+        actorsByFirstName.remove(a.firstName);
+
+      as = actorsByLastName.get(a.lastName);
+      found = as.remove(a);
+      if (!found)
+        throw new RuntimeException();
+      if (as.isEmpty())
+        actorsByLastName.remove(a.lastName);
     }
   }
 
