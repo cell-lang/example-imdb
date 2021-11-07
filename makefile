@@ -21,7 +21,7 @@ imdb-java.jar: java/imdb.java
 imdb-cs.dll: csharp/imdb.cs csharp/imdb.csproj
 	@rm -rf imdb-cs.dll csharp/bin csharp/obj
 	cd csharp ; dotnet build -c Release
-	ln -s csharp/bin/Release/netcoreapp3.1/imdb-cs.dll .
+	ln -s csharp/bin/Release/netcoreapp3.1/imdb .
 
 imdb-embedded.jar: cell/main.java cell/imdb.cell cell/csv.cell cell/embedded.cell
 	@rm -rf imdb-embedded.jar tmp/gen tmp/net/
@@ -39,6 +39,6 @@ imdb-embedded.dll: cell/main.cs cell/imdb.cell cell/csv.cell cell/embedded.cell
 	dotnet build -c Release dotnet/
 
 clean:
-	@rm -rf tmp/* imdb.jar imdb-embedded.jar imdb-java.jar imdb-cs.dll csharp/bin csharp/obj
+	@rm -rf tmp/* imdb.jar imdb-embedded.jar imdb-java.jar imdb-cs.dll imdb csharp/bin csharp/obj
 	@rm -rf dotnet/*.cs dotnet/bin/ dotnet/obj/
 	@rm -rf debug/*
