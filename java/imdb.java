@@ -22,8 +22,11 @@ class IMDB {
         String path = args[2];
 
         if (option.equals("-l")) {
-          for (int i=0 ; i < repetitions ; i++)
+          for (int i=0 ; i < repetitions ; i++) {
+            // System.gc();
             runTests(path, 0, false);
+            // System.out.println();
+          }
         }
         else if (option.equals("-u")) {
           for (int i=0 ; i < repetitions ; i++)
@@ -63,11 +66,17 @@ class IMDB {
 
     boolean noQueries = numOfQueryRuns == 0;
 
+    // System.gc();
     readMovies(moviesDB, path, false, noQueries ? 5 : 0);
+    // System.gc();
     readActors(moviesDB, path, true, noQueries ? 5 : 0);
+    // System.gc();
     readDirectors(moviesDB, path, true, noQueries ? 5 : 0);
+    // System.gc();
     readMoviesDirectors(moviesDB, path, true, noQueries ? 5 : 0);
+    // System.gc();
     readMoviesGenres(moviesDB, path, true, noQueries ? 5 : 0);
+    // System.gc();
     readRoles(moviesDB, path, true, noQueries ? 5 : 0);
 
     if (!runUpdates)

@@ -3,8 +3,6 @@
 
 
 Int Main(String* args) {
-  movies_db : MoviesDB;
-
   if |args| == 3 or |args| == 4 {
     res = _parse_(args(1));
     if not res :: Success[NzNat] {
@@ -84,6 +82,8 @@ RunTests(String path, Nat num_of_query_runs, Bool run_updates, Maybe[String] may
     if i > 0
       Print("\n");
     RunQueries(movies_db);
+    // for j < 10
+    //   CoActorsWithCountInMoviesWithRankAbove(movies_db, j > 0, 5);
   }
 
   Print("\n");
@@ -142,7 +142,7 @@ ReadMovies(MoviesDB movies_db, String path, Bool print_sep, Nat width) {
 
     fail if not id :: Nat;
 
-    msg = add_movie(id: id, name: name, year: year, rank: rank, genres: []);
+    msg = add_movie(id: id, name: name, year: year, rank: rank);
     ok = Send(movies_db, msg);
     assert ok;
   }
@@ -699,6 +699,26 @@ Nat skip_line(Byte* content, Nat offset) {
     else
       idx = idx + 1;
   }
+}
+
+
+(String, Nat) skip_string(Byte* content, Nat offset) {
+  fail if content(offset) != `"`;
+
+  len = |content|;
+
+  idx = offset + 1;
+  loop {
+    fail if idx >= len;
+    ch = content(idx);
+    idx = idx + 1;
+    if ch == `"`
+      if idx < len and content(idx) == `"`
+        idx = idx + 1;
+      else
+        break;
+  }
+  return ("", nat(idx));
 }
 
 

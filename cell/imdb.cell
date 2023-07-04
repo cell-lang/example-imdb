@@ -92,13 +92,20 @@ MoviesDB.add_actor(id: Nat, first_name: String, last_name: String, gender: Gende
     gender      = this.gender;
 }
 
-MoviesDB.add_movie(id: Nat, name: String, year: Int, rank: Float, genres: [Genre]) {
+MoviesDB.add_movie(id: Nat, name: String, year: Int, rank: Float) {
   insert movie(:movie(this.id))
     name  = this.name,
     year  = this.year,
-    rank  = this.rank,
-    genre = g : g <- this.genres;
+    rank  = this.rank;
 }
+
+// MoviesDB.add_movie(id: Nat, name: String, year: Int, rank: Float, genres: [Genre]) {
+//   insert movie(:movie(this.id))
+//     name  = this.name,
+//     year  = this.year,
+//     rank  = this.rank,
+//     genre = g : g <- this.genres;
+// }
 
 MoviesDB.add_director(id: Nat, first_name: String, last_name: String) {
   insert director(:director(this.id))
@@ -135,9 +142,18 @@ MoviesDB.bump_up_rank_of_movies_made_in_or_before(year: Int, factor: Float) {
 
 MoviesDB.calc_actor_avg_movies_rank {
   for a <- actor {
-    r = avg(rank(m) : m <- acted_in(a, ?) if rank(m) > 0, 0.0);
-    if r > 0.0
-      insert actor_rank(a, r);
+    // r = avg(rank(m) : m <- acted_in(a, ?) if rank(m) > 0, 0.0);
+    // if r > 0.0
+    //   insert actor_rank(a, r);
+    s = 0.0;
+    n = 0;
+    for m <- acted_in(a, ?) {
+      r = rank(m);
+      s = s + r;
+      n = n + 1;
+    }
+    if n != 0
+      insert actor_rank(a, s / n);
   }
 }
 
@@ -194,10 +210,29 @@ MoviesDB.delete_directors_with_no_movies {
 ////////////////////////////////////////////////////////////////////////////////
 
 using MoviesDB {
-  Int num_of_movies_with_rank_above(Float min_rank) = sum(1 : id rank <- rank if rank >= min_rank);
+  // Int num_of_movies_with_rank_above(Float min_rank) = sum(1 : id rank <- rank if rank >= min_rank);
+  // Int num_of_movies_with_rank_above(Float min_rank) = sum(1 : m <- movie if rank(m) >= min_rank);
+  Int num_of_movies_with_rank_above(Float min_rank) {
+    count = 0;
+    for m <- movie
+      if rank(m) >= min_rank
+        count = count + 1;
+    return count;
+  }
 
-  Int num_of_actors_who_played_in_a_movie_with_rank_above(Float min_rank) =
-    sum(1 : a <- actor if (m <- acted_in(a, ?) : rank(m) >= min_rank));
+  // Int num_of_actors_who_played_in_a_movie_with_rank_above(Float min_rank) =
+  //   sum(1 : a <- actor if (m <- acted_in(a, ?) : rank(m) >= min_rank));
+
+  Int num_of_actors_who_played_in_a_movie_with_rank_above(Float min_rank) {
+    count = 0;
+    for a <- actor
+      for m <- acted_in(a, ?)
+        if rank(m) >= min_rank {
+          count = count + 1;
+          break;
+        }
+    return count;
+  }
 
   Bool played_in_a_movie_with_rank_above(Actor actor, Float min_rank) =
     (m <- acted_in(actor, ?) : rank(m) >= min_rank);

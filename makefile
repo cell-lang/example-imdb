@@ -1,3 +1,8 @@
+imdb: cell/main.cell cell/imdb.cell cell/csv.cell
+	rm -rf tmp/ && mkdir tmp/
+	bin/cellc -o projects/standalone.txt tmp/
+	g++ -O3 -flto -DNDEBUG tmp/generated.cpp -o imdb
+
 imdb.jar: cell/main.cell cell/imdb.cell cell/csv.cell
 	@rm -rf imdb.jar tmp/gen/ tmp/net/
 	@mkdir -p tmp/gen/

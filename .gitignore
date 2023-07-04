@@ -11,3 +11,7 @@ csharp/bin
 states/
 dotnet/
 bin/cellc-cs
+local-makefile
+bin/out2py.py
+saved/
+performance/
